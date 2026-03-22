@@ -1,0 +1,20 @@
+# claude-courier configuration
+# This file lives in the root of the hub git repository on your NAS.
+
+machines:
+  # Each key is a machine name (set during `claude-courier init`).
+  # claude_home: path to ~/.claude on this machine
+  mac-mini:
+    claude_home: /Users/youruser/.claude
+  macbook-air:
+    claude_home: /Users/youruser/.claude
+  dell-laptop:
+    claude_home: C:\Users\youruser\.claude
+
+projects:
+  # Each key is a canonical project name (used in the hub repo).
+  # Values map machine names to the full local project path on that machine.
+  my-project:
+    mac-mini: /Users/youruser/repos/my-project
+    macbook-air: /Users/youruser/repos/my-project
+    dell-laptop: C:\Users\youruser\repos\my-project
