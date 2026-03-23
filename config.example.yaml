@@ -4,12 +4,16 @@
 machines:
   # Each key is a machine name (set during `claude-courier init`).
   # claude_home: path to ~/.claude on this machine
+  # desktop_home: (optional) path to Claude Desktop data dir for snapshot sync
   mac-mini:
     claude_home: /Users/youruser/.claude
+    desktop_home: /Users/youruser/Library/Application Support/Claude
   macbook-air:
     claude_home: /Users/youruser/.claude
+    desktop_home: /Users/youruser/Library/Application Support/Claude
   dell-laptop:
     claude_home: C:\Users\youruser\.claude
+    # desktop_home: not yet supported on Windows
 
 projects:
   # Each key is a canonical project name (used in the hub repo).

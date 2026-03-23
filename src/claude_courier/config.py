@@ -59,6 +59,13 @@ class Config:
         return Path(raw)
 
     @property
+    def desktop_home(self) -> Path | None:
+        """Return desktop_home for this machine, or None if not configured."""
+        machine_data = self._data["machines"].get(self._machine, {})
+        raw = machine_data.get("desktop_home")
+        return Path(raw) if raw else None
+
+    @property
     def projects_dir(self) -> Path:
         return self.claude_home / "projects"
 

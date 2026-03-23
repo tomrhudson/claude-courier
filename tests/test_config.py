@@ -14,6 +14,7 @@ def config_yaml(tmp_path):
 machines:
   test-mac:
     claude_home: /Users/testuser/.claude
+    desktop_home: /Users/testuser/Library/Application Support/Claude
   test-win:
     claude_home: C:\\Users\\testuser\\.claude
 
@@ -84,6 +85,16 @@ def test_local_path_for_canonical(config_yaml):
     cfg = Config(config_yaml, machine_override="test-mac")
     assert cfg.local_path_for_canonical("my-project") == "/Users/testuser/repos/my-project"
     assert cfg.local_path_for_canonical("nonexistent") is None
+
+
+def test_desktop_home_configured(config_yaml):
+    cfg = Config(config_yaml, machine_override="test-mac")
+    assert cfg.desktop_home == Path("/Users/testuser/Library/Application Support/Claude")
+
+
+def test_desktop_home_not_configured(config_yaml):
+    cfg = Config(config_yaml, machine_override="test-win")
+    assert cfg.desktop_home is None
 
 
 def test_machine_detection_no_file(config_yaml, monkeypatch):

@@ -93,6 +93,39 @@ claude-courier daemon-uninstall
 
 Uses `launchd` on macOS and Task Scheduler on Windows.
 
+### Desktop Sync (macOS only)
+
+Sync Claude Desktop's application data as per-machine snapshots. Requires Claude Desktop to be **closed** before syncing.
+
+First, add `desktop_home` to your machine config in `config.yaml`:
+
+```yaml
+machines:
+  mac-mini:
+    claude_home: /Users/youruser/.claude
+    desktop_home: /Users/youruser/Library/Application Support/Claude
+```
+
+Then:
+
+```bash
+# Check Desktop sync status and available snapshots
+claude-courier desktop-status
+
+# Push Desktop snapshot to hub (quit Claude Desktop first)
+claude-courier desktop-push
+claude-courier desktop-push --dry-run
+
+# Pull a specific machine's snapshot
+claude-courier desktop-pull --from-machine mac-mini
+claude-courier desktop-pull --from-machine mac-mini --force
+
+# Pull the most recently synced snapshot from any other machine
+claude-courier desktop-pull
+```
+
+Desktop sync copies everything except caches, cookies, and lock files. Each machine gets its own snapshot in `hub/desktop/{machine}/` — snapshots are not merged (binary data). Metadata tracks when each snapshot was last synced.
+
 ## Folder Structure
 
 ```
@@ -101,11 +134,12 @@ claude-courier/
 │   ├── cli.py                # Click CLI (entry point)
 │   ├── config.py             # Config loading and machine identity
 │   ├── sync.py               # Core push/pull/status/diff logic
+│   ├── desktop.py            # Claude Desktop snapshot sync (macOS)
 │   ├── path_mapper.py        # Local path <-> canonical project mapping
 │   ├── git_ops.py            # Git operations (commit, push, pull)
 │   ├── history.py            # History file merge/dedup
 │   └── daemon.py             # launchd/Task Scheduler management
-├── tests/                    # pytest test suite (39 tests)
+├── tests/                    # pytest test suite (65 tests)
 ├── docs/superpowers/specs/   # Design spec
 ├── config.example.yaml       # Example hub configuration
 ├── pyproject.toml             # Package metadata
@@ -124,11 +158,11 @@ Only configured projects are synced. Unrecognized project directories are silent
 
 ## Known Issues / Limitations
 
-- **Claude Desktop not supported yet** — Desktop uses IndexedDB/LevelDB, not SQLite. Full-snapshot sync planned for v2.
+- **Claude Desktop sync is macOS only** — Windows Desktop sync not yet implemented.
 - **System Python 3.9 on macOS** — editable installs may require `setup.py`/`setup.cfg` alongside `pyproject.toml` on older pip versions.
 - **No `--project` filter** — currently syncs all configured projects; per-project filtering is a CLI option but not yet wired through to sync logic.
 - **Path encoding is lossy** — hyphens in path components are indistinguishable from path separators. Mitigated by forward-lookup matching against config.
 
 ## Last Updated
 
-2026-03-22 — v0.1.0
+2026-03-23 — v0.2.0-dev (Desktop sync added)

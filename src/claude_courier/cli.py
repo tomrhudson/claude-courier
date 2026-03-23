@@ -16,6 +16,18 @@ from claude_courier.config import (
     set_hub_path,
     set_machine_id,
 )
+from claude_courier.desktop import (
+    DesktopPullConfirmationRequired,
+    DesktopRunningError,
+    DesktopSyncPlan,
+    execute_desktop_pull,
+    execute_desktop_push,
+    get_desktop_home,
+    plan_desktop_pull,
+    plan_desktop_push,
+    read_metadata,
+    is_desktop_running,
+)
 from claude_courier.git_ops import GitError, clone_hub, is_git_repo
 from claude_courier.sync import SyncPlan, execute_pull, execute_push, execute_sync, plan_pull, plan_push
 
@@ -232,5 +244,123 @@ def daemon_status() -> None:
         info = daemon_status_fn()
         click.echo(info)
     except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+# --- Desktop sync commands ---
+
+def _print_desktop_plan(plan: DesktopSyncPlan, direction: str) -> None:
+    if plan.files_to_copy:
+        total_kb = plan.total_size / 1024
+        click.echo(f"\n{direction} ({len(plan.files_to_copy)} files, {total_kb:.1f} KB):")
+        for sf in plan.files_to_copy:
+            size_kb = sf.size / 1024
+            click.echo(f"  [{sf.reason}] {sf.relative_path} ({size_kb:.1f} KB)")
+    else:
+        click.echo(f"\n{direction}: nothing to sync")
+
+    if plan.source_machine:
+        click.echo(f"  Source: {plan.source_machine}")
+
+    if plan.files_unchanged:
+        click.echo(f"  Unchanged: {plan.files_unchanged} files")
+
+
+@main.command(name="desktop-push")
+@click.option("--dry-run", is_flag=True, help="Show what would be pushed without acting")
+@click.pass_context
+def desktop_push(ctx: click.Context, dry_run: bool) -> None:
+    """Push Claude Desktop snapshot to hub."""
+    try:
+        config, hub_path = _load_config(ctx.obj["machine"])
+        plan = execute_desktop_push(config, hub_path, dry_run=dry_run)
+        label = "Would push (Desktop)" if dry_run else "Pushed (Desktop)"
+        _print_desktop_plan(plan, label)
+    except DesktopRunningError as e:
+        click.echo(f"Error: {e}", err=True)
+        click.echo("Quit Claude Desktop and try again.", err=True)
+        sys.exit(1)
+    except (ConfigError, GitError) as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command(name="desktop-pull")
+@click.option("--from-machine", default=None, help="Pull from specific machine snapshot")
+@click.option("--dry-run", is_flag=True, help="Show what would be pulled without acting")
+@click.option("--force", is_flag=True, help="Overwrite local data without confirmation")
+@click.pass_context
+def desktop_pull(ctx: click.Context, from_machine: str | None,
+                 dry_run: bool, force: bool) -> None:
+    """Pull Claude Desktop snapshot from hub."""
+    try:
+        config, hub_path = _load_config(ctx.obj["machine"])
+        plan = execute_desktop_pull(
+            config, hub_path,
+            from_machine=from_machine,
+            dry_run=dry_run,
+            force=force,
+        )
+        label = "Would pull (Desktop)" if dry_run else "Pulled (Desktop)"
+        _print_desktop_plan(plan, label)
+    except DesktopRunningError as e:
+        click.echo(f"Error: {e}", err=True)
+        click.echo("Quit Claude Desktop and try again.", err=True)
+        sys.exit(1)
+    except DesktopPullConfirmationRequired:
+        if click.confirm("This will overwrite local Desktop data. Continue?"):
+            config, hub_path = _load_config(ctx.obj["machine"])
+            plan = execute_desktop_pull(
+                config, hub_path,
+                from_machine=from_machine,
+                dry_run=dry_run,
+                force=True,
+            )
+            _print_desktop_plan(plan, "Pulled (Desktop)")
+        else:
+            click.echo("Aborted.")
+    except (ConfigError, GitError) as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command(name="desktop-status")
+@click.pass_context
+def desktop_status(ctx: click.Context) -> None:
+    """Show Claude Desktop sync status."""
+    try:
+        config, hub_path = _load_config(ctx.obj["machine"])
+
+        desktop_home = get_desktop_home(config)
+        if desktop_home is None:
+            click.echo("Desktop sync not configured (no desktop_home in config)")
+            return
+
+        click.echo(f"Desktop home: {desktop_home}")
+        click.echo(f"Desktop exists: {desktop_home.exists()}")
+        click.echo(f"Desktop running: {is_desktop_running()}")
+
+        # Pending push
+        push_plan = plan_desktop_push(config, hub_path)
+        _print_desktop_plan(push_plan, "Pending push (Desktop)")
+
+        # Available snapshots in hub
+        hub_desktop = hub_path / "desktop"
+        if hub_desktop.exists():
+            click.echo("\nAvailable snapshots:")
+            for machine_dir in sorted(hub_desktop.iterdir()):
+                if not machine_dir.is_dir():
+                    continue
+                meta = read_metadata(machine_dir)
+                if meta:
+                    click.echo(f"  {machine_dir.name}: synced {meta['synced_at']} "
+                               f"({meta['file_count']} files)")
+                else:
+                    click.echo(f"  {machine_dir.name}: no metadata")
+        else:
+            click.echo("\nNo Desktop snapshots in hub yet.")
+
+    except (ConfigError, GitError) as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
